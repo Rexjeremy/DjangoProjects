@@ -1,3 +1,4 @@
+
 """
 Django settings for myproject project.
 
@@ -116,3 +117,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# ... other default django settings above ...
+
+# Absolute bottom of your settings.py file:
+STATIC_URL = 'static/'
+
+import os
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]

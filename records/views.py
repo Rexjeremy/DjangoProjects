@@ -1,27 +1,45 @@
 from django.shortcuts import render, redirect
-from django.db.models import Sum
-from .models import Transaction
-from .forms import TransactionForm
+from .models import SalesRecord
+from .forms import SalesRecordForm
+import json  # Added to safely parse data to the template layout
 
 def dashboard(request):
     if request.method == 'POST':
-        form = TransactionForm(request.POST)
+        form = SalesRecordForm(request.POST)
         if form.is_valid():
             form.save()
             return redirect('dashboard')
     else:
-        form = TransactionForm()
+        form = SalesRecordForm()
 
-    transactions = Transaction.objects.all().order_by('-date')
-    total_income = Transaction.objects.filter(transaction_type='INCOME').aggregate(Sum('amount'))['amount__sum'] or 0
-    total_expense = Transaction.objects.filter(transaction_type='EXPENSE').aggregate(Sum('amount'))['amount__sum'] or 0
-    net_balance = total_income - total_expense
+    sales = SalesRecord.objects.all().order_by('-date', '-id')
+    
+    total_revenue = 0.0
+    total_profit = 0.0
+    
+    # Chart dataset lists
+    chart_labels = []
+    chart_revenue = []
+    chart_profit = []
+
+    # Populate datasets (Taking the last 5 transactions to keep the mobile chart neat)
+    for sale in reversed(list(sales[:5])):
+        chart_labels.append(sale.item_name)
+        chart_revenue.append(float(sale.total_revenue))
+        chart_profit.append(float(sale.net_profit))
+        
+    for sale in sales:
+        total_revenue += float(sale.total_revenue)
+        total_profit += float(sale.net_profit)
 
     context = {
         'form': form,
-        'transactions': transactions,
-        'income': total_income,
-        'expense': total_expense,
-        'balance': net_balance,
+        'sales': sales,
+        'total_revenue': total_revenue,
+        'total_profit': total_profit,
+        # Safely convert Python lists into JSON strings for JavaScript to read
+        'chart_labels': json.dumps(chart_labels),
+        'chart_revenue': json.dumps(chart_revenue),
+        'chart_profit': json.dumps(chart_profit),
     }
     return render(request, 'dashboard.html', context)

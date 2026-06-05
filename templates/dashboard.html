@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Ledger Pro</title>
+    <style>
+        :root {
+            --bg: #f1f5f9;
+            --surface: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #cbd5e1;
+            --primary: #2563eb;
+            --success: #16a34a;
+        }
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #334155;
+        }
+        body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--text); transition: background 0.3s; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn { border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        .btn-theme { background: var(--border); color: var(--text); }
+        .btn-primary { background: var(--primary); color: white; }
+        .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .card { background: var(--surface); padding: 16px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .val { font-size: 22px; font-weight: 700; margin-top: 4px; }
+        .text-success { color: var(--success); }
+        .text-primary { color: var(--primary); }
+        
+        /* CSS Analytics Bar Layouts */
+        .chart-container { display: flex; flex-direction: column; gap: 14px; margin-top: 15px; }
+        .chart-row { display: flex; flex-direction: column; gap: 4px; }
+        .chart-label { font-size: 13px; font-weight: 600; color: var(--text); display: flex; justify-content: space-between; }
+        .bar-track { width: 100%; height: 12px; background: var(--bg); border-radius: 6px; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease-in-out; }
+        .bar-revenue { background: var(--primary); }
+        .bar-profit { background: var(--success); }
+
+        .form-box { max-height: 600px; overflow: hidden; transition: all 0.4s ease; }
+        .form-box.hidden { max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; border: none; }
+        .form-box p { margin: 10px 0; }
+        .form-box input, .form-box select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); box-sizing: border-box; }
+        
+        .search-bar { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); margin-bottom: 15px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; background: var(--bg); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h3 style="margin:0;">🛒 Sales Ledger Pro</h3>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" id="toggleForm">New Sale</button>
+            <button class="btn btn-theme" id="toggleTheme">🌙</button>
+        </div>
+    </div>
+
+    <div class="metrics">
+        <div class="card" style="margin-bottom:0;">
+            <div style="color: var(--muted); font-size: 12px; font-weight:600; text-transform:uppercase;">Total Revenue</div>
+            <div class="val text-primary" id="finalRevenue">₦{{ total_revenue|floatformat:2 }}</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+            <div style="color: var(--muted); font-size: 12px; font-weight:600; text-transform:uppercase;">Gross Profit</div>
+            <div class="val text-success" id="finalProfit">₦{{ total_profit|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <!-- Pure CSS Analytics Progress Bars -->
+    <div class="card">
+        <h4 style="margin-top:0; margin-bottom:5px;">📈 Analytics: Margin Distribution</h4>
+        <div class="chart-container">
+            <div class="chart-row">
+                <div class="chart-label"><span>Total Revenue</span><span class="text-primary">100%</span></div>
+                <div class="bar-track"><div class="bar-fill bar-revenue" style="width: 100%;"></div></div>
+            </div>
+            <div class="chart-row">
+                <div class="chart-label"><span>Net Profit Margin</span><span class="text-success" id="marginLabel">0%</span></div>
+                <div class="bar-track"><div class="bar-fill bar-profit" id="profitBar" style="width: 0%;"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card form-box hidden" id="formBox">
+        <h4 style="margin-top:0; margin-bottom:12px;">📝 Log Customer Sale</h4>
+        <form method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; margin-top:10px;">Record Sale</button>
+        </form>
+    </div>
+
+    <input type="text" id="search" class="search-bar" placeholder="Search items or clients...">
+
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Item details</th>
+                    <th>Qty</th>
+                    <th>Revenue</th>
+                    <th>Profit</th>
+                </tr>
+            </thead>
+            <tbody id="salesTable">
+                {% for s in sales %}
+                <tr class="sale-row" data-search="{{ s.item_name|lower }} {{ s.customer_name|lower }}">
+                    <td>
+                        <strong>{{ s.item_name }}</strong><br>
+                        <span style="color:var(--muted); font-size:11px;">{{ s.date|date:"Y-m-d" }} • <span class="badge">{{ s.get_payment_method_display }}</span></span>
+                        {% if s.customer_name %}<br><span style="color:var(--primary); font-size:12px;">👤 {{ s.customer_name }}</span>{% endif %}
+                    </td>
+                    <td>×{{ s.quantity }}</td>
+                    <td class="text-primary" style="font-weight:600;">₦{{ s.total_revenue|floatformat:2 }}</td>
+                    <td class="text-success" style="font-weight:600;">₦{{ s.net_profit|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align:center; color:var(--muted); padding:30px;">No sales logged.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Theme Management Engine
+        const tBtn = document.getElementById('toggleTheme');
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            tBtn.textContent = '☀️';
+        }
+        tBtn.addEventListener('click', () => {
+            let mode = document.documentElement.getAttribute('data-theme');
+            if (mode === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                tBtn.textContent = '🌙';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                tBtn.textContent = '☀️';
+            }
+        });
+
+        // Form Collapse Interaction
+        const fBox = document.getElementById('formBox');
+        document.getElementById('toggleForm').addEventListener('click', () => fBox.classList.toggle('hidden'));
+
+        // Live Search Filter
+        document.getElementById('search').addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            document.querySelectorAll('.sale-row').forEach(row => {
+                row.style.display = row.getAttribute('data-search').includes(val) ? '' : 'none';
+            });
+        });
+
+        // Offline Automatic Margin Calculation Engine
+        const rev = parseFloat("{{ total_revenue }}") || 0;
+        const prof = parseFloat("{{ total_profit }}") || 0;
+        
+        if (rev > 0) {
+            const pct = Math.min(((prof / rev) * 100), 100).toFixed(1);
+            document.getElementById('marginLabel').textContent = pct + '%';
+            document.getElementById('profitBar').style.width = pct + '%';
+        }
+    </script>
+</body>
+</html>
